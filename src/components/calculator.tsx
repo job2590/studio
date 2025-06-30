@@ -77,7 +77,6 @@ export function Calculator() {
       const { exchangeRate } = await getRealTimeExchangeRate();
       const formattedRate = parseFloat(exchangeRate.toFixed(4));
       setValue('officialRate', formattedRate, { shouldValidate: true });
-      setValue('p2pRate', formattedRate, { shouldValidate: true });
       toast({
         title: "Tasa de cambio actualizada",
         description: `La tasa oficial BOB/USDT es ${exchangeRate}.`,
