@@ -22,7 +22,7 @@ export async function getRealTimeExchangeRate(): Promise<GetRealTimeExchangeRate
 const prompt = ai.definePrompt({
   name: 'getRealTimeExchangeRatePrompt',
   output: {schema: GetRealTimeExchangeRateOutputSchema},
-  prompt: `What is the current BOB/USDT exchange rate? Return the result as a number.`, // Keep it simple, the model knows it's about BOB/USDT.
+  prompt: `You are a financial data analyst. Your task is to provide the most current official exchange rate for Bolivian Boliviano (BOB) to USDT. This should reflect the official bank rate in Bolivia, not P2P market rates. Provide only the numerical value for 1 USDT in BOB.`,
 });
 
 const getRealTimeExchangeRateFlow = ai.defineFlow(

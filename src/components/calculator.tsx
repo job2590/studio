@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -43,8 +43,7 @@ export function Calculator() {
     },
   });
 
-  const { watch, handleSubmit, setValue } = form;
-  const watchedFields = watch(['initialBobAmount', 'p2pRate', 'officialRate']);
+  const { handleSubmit, setValue } = form;
 
   const onSubmit = useCallback(async (data: FormValues) => {
     setLoadingCalculation(true);
@@ -71,20 +70,6 @@ export function Calculator() {
       setLoadingCalculation(false);
     }
   }, [toast]);
-
-  useEffect(() => {
-    const [initialBobAmount, p2pRate, officialRate] = watchedFields;
-    if (initialBobAmount && p2pRate && officialRate) {
-        const numericData: FormValues = {
-            initialBobAmount: Number(initialBobAmount),
-            p2pRate: Number(p2pRate),
-            officialRate: Number(officialRate),
-        }
-        if(!isNaN(numericData.initialBobAmount) && !isNaN(numericData.p2pRate) && !isNaN(numericData.officialRate)){
-             onSubmit(numericData);
-        }
-    }
-  }, [watchedFields, onSubmit]);
 
   const handleFetchRate = async () => {
     setLoadingRate(true);
