@@ -6,8 +6,6 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Loader2, Banknote, HelpCircle, TrendingDown, TrendingUp, CandlestickChart } from 'lucide-react';
 
-import { calculateBOBValue, type CalculateBOBValueOutput } from '@/ai/flows/calculate-bob-value';
-import { getRealTimeExchangeRate } from '@/ai/flows/get-real-time-exchange-rate';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -24,12 +22,16 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-interface Result extends CalculateBOBValueOutput {
+interface CalculationResult {
+    usdtPurchased: number;
+    availableBOBValue: number;
+    percentageReduction: number;
+}
+interface Result extends CalculationResult {
     initialBobAmount: number;
 }
 
 export function Calculator() {
-  const [loadingRate, setLoadingRate] = useState(false);
   const [loadingCalculation, setLoadingCalculation] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const { toast } = useToast();
@@ -43,55 +45,39 @@ export function Calculator() {
     },
   });
 
-  const { handleSubmit, setValue } = form;
+  const { handleSubmit } = form;
 
-  const onSubmit = useCallback(async (data: FormValues) => {
+  const onSubmit = useCallback((data: FormValues) => {
     setLoadingCalculation(true);
     setResult(null);
-    try {
-      const calculationResult = await calculateBOBValue({
-        initialBOBAmount: data.initialBobAmount,
-        p2pRate: data.p2pRate,
-        officialBOBToUSDTExchangeRate: data.officialRate,
-      });
 
-      setResult({
-        ...calculationResult,
-        initialBobAmount: data.initialBobAmount,
-      });
-    } catch (error) {
-       console.error(error);
-       toast({
-        variant: "destructive",
-        title: "Error de cálculo",
-        description: "Ocurrió un error al calcular el valor. Revisa los datos ingresados.",
-      });
-    } finally {
-      setLoadingCalculation(false);
-    }
+    // Simulate calculation time for better UX
+    setTimeout(() => {
+        try {
+            const { initialBobAmount, p2pRate, officialRate } = data;
+            const usdtPurchased = initialBobAmount / p2pRate;
+            const availableBOBValue = usdtPurchased * officialRate;
+            const percentageReduction = ((availableBOBValue - initialBobAmount) / initialBobAmount) * 100;
+    
+            setResult({
+              usdtPurchased,
+              availableBOBValue,
+              percentageReduction,
+              initialBobAmount: data.initialBobAmount,
+            });
+        } catch (error) {
+           console.error(error);
+           toast({
+            variant: "destructive",
+            title: "Error de cálculo",
+            description: "Ocurrió un error al calcular el valor. Revisa los datos ingresados.",
+          });
+        } finally {
+          setLoadingCalculation(false);
+        }
+    }, 500);
+
   }, [toast]);
-
-  const handleFetchRate = async () => {
-    setLoadingRate(true);
-    try {
-      const { exchangeRate } = await getRealTimeExchangeRate();
-      const formattedRate = parseFloat(exchangeRate.toFixed(4));
-      setValue('officialRate', formattedRate, { shouldValidate: true });
-      toast({
-        title: "Tasa de cambio actualizada",
-        description: `La tasa oficial BOB/USDT es ${exchangeRate}.`,
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo obtener la tasa de cambio. Por favor, ingrésala manualmente.",
-      });
-    } finally {
-      setLoadingRate(false);
-    }
-  };
 
   return (
     <TooltipProvider>
@@ -170,7 +156,7 @@ export function Calculator() {
                                 <HelpCircle className="h-4 w-4 cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>El tipo de cambio oficial actual. Puedes obtenerlo automáticamente o ingresarlo.</p>
+                                <p>El tipo de cambio oficial actual. Debes ingresarlo manualmente.</p>
                             </TooltipContent>
                         </Tooltip>
                       </FormLabel>
@@ -181,9 +167,6 @@ export function Calculator() {
                                 <Input type="number" step="any" placeholder="Ej: 6.86" {...field} className="pl-10" />
                             </div>
                         </FormControl>
-                        <Button type="button" variant="outline" onClick={handleFetchRate} disabled={loadingRate}>
-                          {loadingRate ? <Loader2 className="h-4 w-4 animate-spin" /> : "Obtener Tasa"}
-                        </Button>
                       </div>
                       <FormMessage />
                     </FormItem>
@@ -230,11 +213,11 @@ export function Calculator() {
                     </div>
                      <div className={cn(
                         "flex items-center justify-between rounded-lg p-4",
-                        result.percentageReduction <= 0 ? "bg-destructive/20 text-destructive" : "bg-green-500/20 text-green-500"
+                        result.percentageReduction < 0 ? "bg-destructive/20 text-destructive" : "bg-green-500/20 text-green-500"
                      )}>
                         <span className="flex items-center gap-2 font-medium">
                             <TrendingDown className="h-5 w-5"/>
-                            {result.percentageReduction <= 0 ? "Reducción de Valor" : "Ganancia de Valor"}
+                            {result.percentageReduction < 0 ? "Reducción de Valor" : "Ganancia de Valor"}
                         </span>
                         <span className="font-bold">
                             {result.percentageReduction.toFixed(2)}%
