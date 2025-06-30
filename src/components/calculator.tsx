@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Loader2, Banknote, HelpCircle, TrendingDown, TrendingUp, Wallet, CandlestickChart } from 'lucide-react';
+import { Loader2, Banknote, HelpCircle, TrendingDown, TrendingUp, CandlestickChart } from 'lucide-react';
 
 import { calculateBOBValue, type CalculateBOBValueOutput } from '@/ai/flows/calculate-bob-value';
 import { getRealTimeExchangeRate } from '@/ai/flows/get-real-time-exchange-rate';
@@ -19,7 +19,6 @@ import { cn } from '@/lib/utils';
 const formSchema = z.object({
   initialBobAmount: z.coerce.number().positive({ message: "Debe ser un número positivo." }),
   p2pRate: z.coerce.number().positive({ message: "Debe ser un número positivo." }),
-  currentUsdtBalance: z.coerce.number().min(0, { message: "No puede ser negativo." }),
   officialRate: z.coerce.number().positive({ message: "Debe ser un número positivo." }),
 });
 
@@ -40,17 +39,28 @@ export function Calculator() {
     defaultValues: {
       initialBobAmount: undefined,
       p2pRate: undefined,
-      currentUsdtBalance: undefined,
       officialRate: undefined,
     },
   });
+
+  const { watch, handleSubmit, setValue } = form;
+  const watchedFields = watch(['initialBobAmount', 'p2pRate', 'officialRate']);
+
+  useEffect(() => {
+    const [initialBobAmount, p2pRate, officialRate] = watchedFields;
+    if (initialBobAmount && p2pRate && officialRate) {
+      onSubmit({ initialBobAmount, p2pRate, officialRate });
+    }
+  }, [watchedFields]);
 
   const handleFetchRate = async () => {
     setLoadingRate(true);
     try {
       const { exchangeRate } = await getRealTimeExchangeRate();
-      form.setValue('officialRate', parseFloat(exchangeRate.toFixed(4)), { shouldValidate: true });
-       toast({
+      const formattedRate = parseFloat(exchangeRate.toFixed(4));
+      setValue('officialRate', formattedRate, { shouldValidate: true });
+      setValue('p2pRate', formattedRate, { shouldValidate: true });
+      toast({
         title: "Tasa de cambio actualizada",
         description: `La tasa oficial BOB/USDT es ${exchangeRate}.`,
       });
@@ -72,18 +82,13 @@ export function Calculator() {
     try {
       const calculationResult = await calculateBOBValue({
         initialBOBAmount: data.initialBobAmount,
-        bobToUSDTExchangeRate: data.p2pRate,
-        currentUSDTBalance: data.currentUsdtBalance,
+        p2pRate: data.p2pRate,
         officialBOBToUSDTExchangeRate: data.officialRate,
       });
 
       setResult({
         ...calculationResult,
         initialBobAmount: data.initialBobAmount,
-      });
-      toast({
-        title: "Cálculo Exitoso",
-        description: "Resultados generados a continuación.",
       });
     } catch (error) {
        console.error(error);
@@ -106,7 +111,7 @@ export function Calculator() {
             <CardDescription>Ingresa los datos de tu transacción para calcular el valor actual de tu dinero.</CardDescription>
           </CardHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
+            <form onSubmit={handleSubmit(onSubmit)}>
               <CardContent className="grid gap-6">
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <FormField
@@ -164,32 +169,6 @@ export function Calculator() {
                 </div>
                  <FormField
                   control={form.control}
-                  name="currentUsdtBalance"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1">
-                        Saldo Actual (USDT)
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <HelpCircle className="h-4 w-4 cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>La cantidad de USDT que te queda en tu billetera (ej. Redotpay).</p>
-                            </TooltipContent>
-                        </Tooltip>
-                      </FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                            <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input type="number" step="any" placeholder="Ej: 100.50" {...field} className="pl-10" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
                   name="officialRate"
                   render={({ field }) => (
                     <FormItem>
@@ -244,6 +223,13 @@ export function Calculator() {
                         </span>
                         <span className="font-bold">{result.initialBobAmount.toFixed(2)} Bs</span>
                     </div>
+                     <div className="flex items-center justify-between rounded-lg bg-muted p-4">
+                        <span className="flex items-center gap-2 font-medium text-muted-foreground">
+                            <TrendingUp className="h-5 w-5"/>
+                            USDT Adquiridos
+                        </span>
+                        <span className="font-bold">{result.usdtPurchased.toFixed(2)} $</span>
+                    </div>
                     <div className="flex items-center justify-between rounded-lg bg-primary/20 p-4">
                         <span className="flex items-center gap-2 font-medium text-primary">
                             <TrendingUp className="h-5 w-5"/>
@@ -253,14 +239,14 @@ export function Calculator() {
                     </div>
                      <div className={cn(
                         "flex items-center justify-between rounded-lg p-4",
-                        result.percentageReduction >= 0 ? "bg-destructive/20 text-destructive" : "bg-accent/20 text-accent-foreground"
+                        result.percentageReduction <= 0 ? "bg-destructive/20 text-destructive" : "bg-green-500/20 text-green-500"
                      )}>
                         <span className="flex items-center gap-2 font-medium">
                             <TrendingDown className="h-5 w-5"/>
-                            {result.percentageReduction >= 0 ? "Reducción de Valor" : "Ganancia de Valor"}
+                            {result.percentageReduction <= 0 ? "Reducción de Valor" : "Ganancia de Valor"}
                         </span>
                         <span className="font-bold">
-                            {Math.abs(result.percentageReduction).toFixed(2)}%
+                            {result.percentageReduction.toFixed(2)}%
                         </span>
                     </div>
                 </CardContent>

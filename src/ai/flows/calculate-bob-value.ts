@@ -1,32 +1,31 @@
 'use server';
-
 /**
- * @fileOverview Calculates the current value of USDT in BOB and shows the percentage reduction compared to the initial BOB investment.
+ * @fileOverview Calculates the real value of BOB after a P2P transaction.
  *
- * - calculateBOBValue - A function that handles the BOB value calculation process.
+ * - calculateBOBValue - A function that handles the value calculation.
  * - CalculateBOBValueInput - The input type for the calculateBOBValue function.
  * - CalculateBOBValueOutput - The return type for the calculateBOBValue function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'zod';
 
 const CalculateBOBValueInputSchema = z.object({
-  initialBOBAmount: z.number().describe('The initial amount spent in BOB.'),
-  bobToUSDTExchangeRate: z.number().describe('The BOB/USDT exchange rate used during the initial Binance P2P transaction.'),
-  currentUSDTBalance: z.number().describe('The current USDT balance remaining in the wallet.'),
-  officialBOBToUSDTExchangeRate: z.number().describe('The current official BOB/USDT exchange rate.'),
+    initialBOBAmount: z.number().describe("The initial amount in BOB."),
+    p2pRate: z.number().describe("The P2P exchange rate used for the transaction."),
+    officialBOBToUSDTExchangeRate: z.number().describe("The official BOB to USDT exchange rate."),
 });
 export type CalculateBOBValueInput = z.infer<typeof CalculateBOBValueInputSchema>;
 
 const CalculateBOBValueOutputSchema = z.object({
-  availableBOBValue: z.number().describe('The calculated BOB value available based on the current USDT balance and official exchange rate.'),
-  percentageReduction: z.number().describe('The percentage reduction in value compared to the initial BOB amount.'),
+    usdtPurchased: z.number().describe("The amount of USDT purchased."),
+    availableBOBValue: z.number().describe("The equivalent value in BOB at the official rate."),
+    percentageReduction: z.number().describe("The percentage reduction or gain in value."),
 });
 export type CalculateBOBValueOutput = z.infer<typeof CalculateBOBValueOutputSchema>;
 
 export async function calculateBOBValue(input: CalculateBOBValueInput): Promise<CalculateBOBValueOutput> {
-  return calculateBOBValueFlow(input);
+    return calculateBOBValueFlow(input);
 }
 
 const calculateBOBValueFlow = ai.defineFlow(
@@ -35,13 +34,26 @@ const calculateBOBValueFlow = ai.defineFlow(
     inputSchema: CalculateBOBValueInputSchema,
     outputSchema: CalculateBOBValueOutputSchema,
   },
-  async input => {
-    const availableBOBValue = input.currentUSDTBalance * input.officialBOBToUSDTExchangeRate;
-    const percentageReduction = ((input.initialBOBAmount - availableBOBValue) / input.initialBOBAmount) * 100;
+  async (input) => {
+    const {
+      initialBOBAmount,
+      p2pRate,
+      officialBOBToUSDTExchangeRate,
+    } = input;
+
+    // Calculate the amount of USDT purchased
+    const usdtPurchased = initialBOBAmount / p2pRate;
+
+    // Calculate the equivalent value of the purchased USDT in BOB at the official rate
+    const availableBOBValue = usdtPurchased * officialBOBToUSDTExchangeRate;
+
+    // Calculate the percentage reduction or gain
+    const percentageReduction = ((availableBOBValue - initialBOBAmount) / initialBOBAmount) * 100;
 
     return {
+      usdtPurchased,
       availableBOBValue,
       percentageReduction,
     };
-  }
+  },
 );
