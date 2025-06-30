@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -37,46 +37,16 @@ export function Calculator() {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      initialBobAmount: undefined,
-      p2pRate: undefined,
-      officialRate: undefined,
+      initialBobAmount: '' as any,
+      p2pRate: '' as any,
+      officialRate: '' as any,
     },
   });
 
   const { watch, handleSubmit, setValue } = form;
   const watchedFields = watch(['initialBobAmount', 'p2pRate', 'officialRate']);
 
-  useEffect(() => {
-    const [initialBobAmount, p2pRate, officialRate] = watchedFields;
-    if (initialBobAmount && p2pRate && officialRate) {
-      onSubmit({ initialBobAmount, p2pRate, officialRate });
-    }
-  }, [watchedFields]);
-
-  const handleFetchRate = async () => {
-    setLoadingRate(true);
-    try {
-      const { exchangeRate } = await getRealTimeExchangeRate();
-      const formattedRate = parseFloat(exchangeRate.toFixed(4));
-      setValue('officialRate', formattedRate, { shouldValidate: true });
-      setValue('p2pRate', formattedRate, { shouldValidate: true });
-      toast({
-        title: "Tasa de cambio actualizada",
-        description: `La tasa oficial BOB/USDT es ${exchangeRate}.`,
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo obtener la tasa de cambio. Por favor, ingrésala manualmente.",
-      });
-    } finally {
-      setLoadingRate(false);
-    }
-  };
-
-  const onSubmit = async (data: FormValues) => {
+  const onSubmit = useCallback(async (data: FormValues) => {
     setLoadingCalculation(true);
     setResult(null);
     try {
@@ -99,6 +69,43 @@ export function Calculator() {
       });
     } finally {
       setLoadingCalculation(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    const [initialBobAmount, p2pRate, officialRate] = watchedFields;
+    if (initialBobAmount && p2pRate && officialRate) {
+        const numericData: FormValues = {
+            initialBobAmount: Number(initialBobAmount),
+            p2pRate: Number(p2pRate),
+            officialRate: Number(officialRate),
+        }
+        if(!isNaN(numericData.initialBobAmount) && !isNaN(numericData.p2pRate) && !isNaN(numericData.officialRate)){
+             onSubmit(numericData);
+        }
+    }
+  }, [watchedFields, onSubmit]);
+
+  const handleFetchRate = async () => {
+    setLoadingRate(true);
+    try {
+      const { exchangeRate } = await getRealTimeExchangeRate();
+      const formattedRate = parseFloat(exchangeRate.toFixed(4));
+      setValue('officialRate', formattedRate, { shouldValidate: true });
+      setValue('p2pRate', formattedRate, { shouldValidate: true });
+      toast({
+        title: "Tasa de cambio actualizada",
+        description: `La tasa oficial BOB/USDT es ${exchangeRate}.`,
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo obtener la tasa de cambio. Por favor, ingrésala manualmente.",
+      });
+    } finally {
+      setLoadingRate(false);
     }
   };
 
